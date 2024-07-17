@@ -4,7 +4,8 @@
          format_type_error/2,
          print_errors/2,
          handle_type_error/2,
-         form_info/1]).
+         form_info/1,
+         type_error_location/2]).
 
 -include("typelib.hrl").
 
@@ -45,6 +46,68 @@ format_location(Expr, verbose) ->
         Line when is_integer(Line) ->
             io_lib:format(" on line ~p", [Line])
     end.
+
+
+-spec type_error_location(any(), string())
+    -> {start, erl_anno:location()} | {range, erl_anno:location(), erl_anno:location()} | unknown.
+type_error_location(TypeError, Source) ->
+    case expr_in_type_error(TypeError) of
+        none ->
+            case loc_in_type_error(TypeError) of
+                none -> unknown;
+                Loc -> {start, Loc}
+            end;
+        Expr ->
+            {Start, End} = gradualizer_highlight:find_start_and_end_location_in_source(Expr, Source),
+            {range, Start, End}
+    end.
+
+
+-spec loc_in_type_error(any()) -> erl_anno:location() | none.
+loc_in_type_error({nonexhaustive, Anno, _Example}) -> erl_anno:location(Anno);
+loc_in_type_error({call_undef, Anno, _Module, _Func, _Arity}) -> erl_anno:location(Anno);
+loc_in_type_error({undef, record, Anno, {_Module, _RecName}}) -> erl_anno:location(Anno);
+loc_in_type_error({undef, user_type, Anno, {_Name, _Arity}}) -> erl_anno:location(Anno);
+loc_in_type_error({undef, _Type, Anno, {_Module, _Name, _Arity}}) -> erl_anno:location(Anno);
+loc_in_type_error({not_exported, remote_type, Anno, {_Module, _Name, _Arity}}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, list, Anno, _Ty1, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, list, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, cons_pat, Anno, _Cons, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({argument_length_mismatch, Anno, _LenTy, _LenArgs}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, unreachable_clauses, Anno}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, call_arity, Anno, _Fun, _TyArity, _CallArity}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, relop, _RelOp, Anno, _Ty1, _Ty2}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, op_type_too_precise, '/' = _Op, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, op_type_too_precise, _Op, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, arith_error, _ArithOp, Anno, _Ty1, _Ty2}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, int_error, _ArithOp, Anno, _Ty1, _Ty2}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, arith_error, _ArithOp, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, int_error, _IntOp, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, non_number_argument_to_plus, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, non_number_argument_to_minus, Anno, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, unary_error, _Op, Anno, _TargetTy, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, rel_error, _LogicOp, Anno, _Ty1, _Ty2}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, record_pattern, Anno, _Record, _Ty}) -> erl_anno:location(Anno);
+loc_in_type_error({type_error, receive_after, Anno, _TyClauses, _TyBlock}) -> erl_anno:location(Anno);
+loc_in_type_error(_) -> none.
+
+-spec expr_in_type_error(any()) -> erl_parse:abstract_expr() | gradualizer_type:abstract_type() | none.
+expr_in_type_error({type_error, Expr, _ActualTy, _ExpectedTy}) when is_tuple(Expr) -> Expr;
+expr_in_type_error({undef, record_field, FieldName}) -> FieldName;
+% a bit weird
+expr_in_type_error({illegal_map_type, Type}) -> Type;
+% the whole call expr would be more appropriate
+expr_in_type_error({type_error, call_intersect, _Anno, Name, _FunTy, _ArgTys}) -> Name;
+expr_in_type_error({type_error, operator_pattern, Pat, _Ty}) -> Pat;
+expr_in_type_error({type_error, pattern, _Anno, Pat, _Ty}) -> Pat;
+expr_in_type_error({type_error, badkey, KeyExpr, _MapType}) -> KeyExpr;
+expr_in_type_error({type_error, cyclic_type_vars, _Anno, Ty, _Xs}) -> Ty;
+expr_in_type_error({type_error, mismatch, _Ty, Expr}) -> Expr;
+expr_in_type_error({bad_type_annotation, TypeLit}) -> TypeLit;
+expr_in_type_error({unsupported_expression, _Anno, Expr}) -> Expr;
+expr_in_type_error({constraint_error, _TyVar, _LB, _UB, {call, _Anno, _Name, _Args} = Expr, _FunTy, _ArgTys}) -> Expr;
+expr_in_type_error(_) -> none.
+
 
 -spec format_type_error(any(), any()) -> io_lib:chars().
 format_type_error({type_error, Expression, ActualType, ExpectedType}, Opts)
