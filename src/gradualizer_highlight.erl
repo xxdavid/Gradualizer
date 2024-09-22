@@ -2,7 +2,8 @@
 -module(gradualizer_highlight).
 
 -export([prettyprint_and_highlight/3,
-         highlight_in_source/3]).
+         highlight_in_source/3,
+         find_start_and_end_location_in_source/2]).
 
 -include("gradualizer.hrl").
 
@@ -38,7 +39,7 @@ prettyprint_and_highlight(AstNode, AstContext, Color) ->
             not_found when TrimmedCtx /= AstContext ->
                 %% Trimming may have discarded the containing form.
                 %% This can happen if line numbers in the AST are
-                %% not in order. Try without the full context.
+                %% not in order. Try with the full context.
                 recreate_source(AstNode, AstContext);
             {_,_,_} = Found ->
                 Found
@@ -143,6 +144,18 @@ parse_into_list_of_forms(Pretty) ->
         Forms when is_list(Forms) -> Forms;
         Form                      -> [Form]
     end.
+
+% -spec guess_start_col(StartLine :: erl_anno:line(), Source :: string()) -> erl_anno:column().
+% guess_start_col(StartLine, Source) ->
+%     Lines = re:split(Source, "\\n", [{return, list}]),
+%     Line = lists:nth(StartLine, Lines),
+%     {match, [{0, WhitespaceLen}]} = re:run(Line, "^\\s+", []),
+%     WhitespaceLen + 1.
+
+% -spec guess_end_location(Start :: erl_anno:location(), Source :: string()) -> erl_anno:location().
+% guess_end_location(Start, Source) ->
+
+% guess_end_column(Column, Source, Level)
 
 %% Highlights the text between two locations (line and column) in a text.
 highlight_text(Pretty, StartLoc, EndLoc, Color) ->
