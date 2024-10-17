@@ -5798,7 +5798,7 @@ create_fenv(Specs, Funs) ->
 % case it will mean that if there is a spec, then that will take precedence
 % over the default type any().
     maps:from_list(
-      [ {{Name, NArgs}, [type(any)]}
+      [ {{Name, NArgs}, absform:normalize_function_type_list([type_fun(NArgs)])}
         || {function,_, Name, NArgs, _Clauses} <- Funs
       ] ++
       [ {{Name, NArgs}, absform:normalize_function_type_list(Types)}
